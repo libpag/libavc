@@ -1,0 +1,13 @@
+cmake-build-release
+cmake-build-debug
+/third_party
+node_modules
+Build/
+test/out/
+DerivedData/
+xcuserdata
+*.xcworkspace
+.DS_Store
+.temp
+Pods/
+.idea
