@@ -131,7 +131,23 @@
 #include "asm_function.h"
 .include "ih264_neon_macros.s"
 
-
+// Both functions below take 13 arguments, so wt2, ofst1, ofst2, ht and wd are passed on the
+// stack. The AAPCS64 layout used by GCC and by clang on Linux/Android gives each of these
+// WORD32 arguments its own 8-byte stack slot, while Apple's arm64 PCS packs them contiguously
+// at their 4-byte natural size. Apple clang callers therefore place them at [sp], [sp+4],
+// [sp+8], [sp+12] and [sp+16]. Since 80 bytes (push_v_regs + stp x19, x20) are pushed before
+// the loads, add 80 to those offsets. wt2 sits at [sp] in both layouts.
+#ifdef __APPLE__
+#define WT_BI_PRED_OFST1_SP   84
+#define WT_BI_PRED_OFST2_SP   88
+#define WT_BI_PRED_HT_SP      92
+#define WT_BI_PRED_WD_SP      96
+#else
+#define WT_BI_PRED_OFST1_SP   88
+#define WT_BI_PRED_OFST2_SP   96
+#define WT_BI_PRED_HT_SP      104
+#define WT_BI_PRED_WD_SP      112
+#endif
 
 asm_function ih264_weighted_bi_pred_luma_av8
 
@@ -142,13 +158,13 @@ asm_function ih264_weighted_bi_pred_luma_av8
     sxtw      x5, w5
     stp       x19, x20, [sp, #-16]!
     ldr       w8, [sp, #80]             //Load wt2 in w8
-    ldr       w9, [sp, #88]             //Load ofst1 in w9
+    ldr       w9, [sp, #WT_BI_PRED_OFST1_SP]  //Load ofst1 in w9
     add       w6, w6, #1                //w6  = log_WD + 1
     neg       w10, w6                   //w10 = -(log_WD + 1)
     dup       v0.8h, w10                //Q0  = -(log_WD + 1) (32-bit)
-    ldr       w10, [sp, #96]            //Load ofst2 in w10
-    ldr       w11, [sp, #104]           //Load ht in w11
-    ldr       w12, [sp, #112]           //Load wd in w12
+    ldr       w10, [sp, #WT_BI_PRED_OFST2_SP] //Load ofst2 in w10
+    ldr       w11, [sp, #WT_BI_PRED_HT_SP]    //Load ht in w11
+    ldr       w12, [sp, #WT_BI_PRED_WD_SP]    //Load wd in w12
     add       w9, w9, #1                //w9 = ofst1 + 1
     add       w9, w9, w10               //w9 = ofst1 + ofst2 + 1
     mov       v2.s[0], w7
@@ -426,12 +442,12 @@ asm_function ih264_weighted_bi_pred_chroma_av8
     dup       v4.4s, w8                 //Q2 = (wt2_u, wt2_v) (32-bit)
     dup       v2.4s, w7                 //Q1 = (wt1_u, wt1_v) (32-bit)
     add       w6, w6, #1                //w6  = log_WD + 1
-    ldr       w9, [sp, #88]             //Load ofst1 in w9
-    ldr       w10, [sp, #96]            //Load ofst2 in w10
+    ldr       w9, [sp, #WT_BI_PRED_OFST1_SP]  //Load ofst1 in w9
+    ldr       w10, [sp, #WT_BI_PRED_OFST2_SP] //Load ofst2 in w10
     neg       w20, w6                   //w20 = -(log_WD + 1)
     dup       v0.8h, w20                //Q0  = -(log_WD + 1) (16-bit)
-    ldr       w11, [sp, #104]           //Load ht in x11
-    ldr       w12, [sp, #112]           //Load wd in x12
+    ldr       w11, [sp, #WT_BI_PRED_HT_SP]    //Load ht in x11
+    ldr       w12, [sp, #WT_BI_PRED_WD_SP]    //Load wd in x12
     dup       v20.8h, w9                //0ffset1
     dup       v21.8h, w10               //0ffset2
     srhadd    v6.8b, v20.8b, v21.8b
